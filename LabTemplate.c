@@ -39,7 +39,7 @@ unsigned char h_count = 0;          // Counter to count 40 ms for compass delay
 unsigned char p_count = 0;          // Counter to count ?? ms for print delay
 signed int heading = 0;             // Variable to hold compass heading value
 unsigned int range = 0;             // Variable to hold ranger distance value
-
+float time = 0;
 signed int des_heading = 0;         // Desired heading
 signed int heading_error = 0;       // Error calculation
 
@@ -64,7 +64,13 @@ void main(void){
 
     // Initialize the drive motor to neutral for 1 s
         // Set motor pulsewidth to neutral
-    while(counts < 100){ // Wait 1 second
+    read_compass();
+    read_ranger();
+    MOTOR_PW = MOTOR_NEUT;
+    PCA0CP1 = MOTOR_PW;
+    SERVO_PW = SERVO_CENTER;
+    PCA0CP0 = SERVO_PW;
+    while(counts < 45){ // Wait 1 second
         Sim_Update();   // Called in all loops!
     }
 
@@ -154,7 +160,7 @@ void set_servoPW(){
     }else if(SERVO_PW < SERVO_LEFT){
         SERVO_PW = SERVO_LEFT;
     }
-    PCA0CP_ = 0xFFFF - SERVO_PW;
+    PCA0CP0 = 0xFFFF - SERVO_PW;
 }
 
 void set_motorPW(){
@@ -164,22 +170,30 @@ void set_motorPW(){
     }else if(MOTOR_PW < MOTOR_MIN){
         MOTOR_PW = MOTOR_MIN;
     }
-    PCA0CP_ = 0xFFFF - MOTOR_PW;
+    PCA0CP1 = 0xFFFF - MOTOR_PW;
 }
 
 void PCA_ISR(void){
-    if(CF){     // If a PCA overflow has occurred
-        PCA0 = _____;   // Preload the counter for 20 ms operation
-
-        counts++;       // Increment *all* our counters
-        r_count++;
+    if(CF){
+        CF = 0;
         h_count++;
+        r_count++;
         p_count++;
-
-        // Add flag setting, e.g.:
-        if(r_count > __){
-            // stuff
+        if(h_count == 4){  // Count 40 ms
+            h_count = 0;
+            new_heading = 1;
         }
+        if(r_count == 8){  // Count 80 ms
+            r_count = 0;
+            new_range = 1;
+        }
+        if(p_count == 4){  // Count 100 ms
+            p_count = 0;
+            new_print = 1;
+        }
+        PCA0 = 28672;  // Configure the period of the PCA
+        counts ++;
+        time = counts/40;
     }
-    PCA0CN = 0x40;      // Clear all interrupts (including CF), leave CR=1
+    PCA0CN = 0x40;
 }
