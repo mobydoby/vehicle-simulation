@@ -1,0 +1,27 @@
+# depslib dependency file v1.0
+1642784859 source:c:\users\beyerdominic\documents\school\sem4\ied\vehicle-simulation\labtemplate.c
+	"C8051_SIM.h"
+	<stdio.h>
+	<stdlib.h>
+
+1642528649 c:\users\beyerdominic\documents\school\sem4\ied\vehicle-simulation\c8051_sim.h
+	<windows.h>
+	<winsock2.h>
+	<ws2tcpip.h>
+	<stdio.h>
+	<conio.h>
+	<sys/socket.h>
+	<arpa/inet.h>
+	<errno.h>
+	<time.h>
+	<sys/select.h>
+	<termios.h>
+	<stdio.h>
+	<stdlib.h>
+	<stdint.h>
+	<string.h>
+	<sys/types.h>
+	<sys/stat.h>
+	<fcntl.h>
+	<unistd.h>
+
