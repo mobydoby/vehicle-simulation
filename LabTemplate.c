@@ -19,6 +19,7 @@ void read_ranger(void);             // Function to read the ranger and start a p
 void read_compass(void);            // Function to read the compass heading
 void set_servoPW(signed int user_input);
 void set_motorPW(signed int user_input);
+void ReadRanger(uint8_t direction);
 
 signed int MOTOR_NEUT = 2765;       // Neutral              1.5 ms
 signed int MOTOR_MAX = 3502;        // Full Forward         1.9 ms
@@ -40,8 +41,16 @@ unsigned char p_count = 0;          // Counter to count ?? ms for print delay
 signed int heading = 0;             // Variable to hold compass heading value
 unsigned int range = 0;             // Variable to hold ranger distance value
 float time = 0;
+uint8_t Data[2];
 signed int des_heading = 0;         // Desired heading
 signed int heading_error = 0;       // Error calculation
+uint16_t distance = 0;
+uint16_t distancef = 0;
+uint16_t distancel = 0;
+uint16_t distancer = 0;
+uint8_t front = 2;
+uint8_t left = 4;
+uint8_t right = 6;
 
 //float ksteer = _;                   // Proportional Gain constant for steering
 //float kdrive = _;                   // Proportional Gain constant for Drive
@@ -64,7 +73,7 @@ void main(void){
     // Read ranger once to trigger ping.
 
     // Initialize the drive motor to neutral for 1 s
-        // Set motor pulsewidth to neutral
+    // Set motor pulsewidth to neutral
     read_compass();
     read_ranger();
     MOTOR_PW = MOTOR_NEUT;
@@ -94,8 +103,13 @@ void main(void){
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         if (new_range){
             // Get distance and act upon it
-            read_ranger();
-            printf("Range: %d\n", range);
+            ReadRanger(front);
+            distancef = distance;
+            ReadRanger(left);
+            distancel = distance;
+            ReadRanger(right);
+            distancer = distance;
+            printf("Range Left: %d   Range Right: %d   Range Front: %d\n", distancel, distancer, distancef);
             new_range = 0;
         }
         if (new_heading){
@@ -163,6 +177,14 @@ void read_ranger(void){
     i2c_write_data(0xE0, 0, Data, 1);    // write data byte to ranger
 }
 
+void ReadRanger(uint8_t direction){
+    i2c_read_data(0xE0, direction, Data, 2);   // Read the 0-3600 heading bytes
+    distance = Data[0] << 8; // Put the bytes together and save value to global variable
+    distance |= Data[1];
+    Data[0] = 0x51;
+    i2c_write_data(0xE0, 0, Data, 1);
+    distance = distance;
+}
 
 
 void set_servoPW(signed int user_input){
