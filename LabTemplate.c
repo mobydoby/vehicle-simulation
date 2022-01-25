@@ -35,12 +35,12 @@ unsigned char counts = 0;           // PCA overflow counter
 unsigned char new_range = 0;        // Flag denoting if a new range value should be retrieved (set in interrupt)
 unsigned char new_heading = 0;      // Flag denoting if a new heading value should be retrieved (set in interrupt)
 unsigned char new_print = 0;        // Flag denoting that we can print (set in interrupt)
-unsigned char r_count = 0;          // Counter to count 80 ms for ranger delay
-unsigned char h_count = 0;          // Counter to count 40 ms for compass delay
-unsigned char p_count = 0;          // Counter to count ?? ms for print delay
+unsigned char r_count = 0;          // Counter to count for ranger delay
+unsigned char h_count = 0;          // Counter to count for compass delay
+unsigned char p_count = 0;          // Counter to count print delay
 signed int heading = 0;             // Variable to hold compass heading value
 unsigned int range = 0;             // Variable to hold ranger distance value
-float time = 0;
+unsigned int time = 0;
 uint8_t Data[2];
 signed int des_heading = 0;         // Desired heading
 signed int heading_error = 0;       // Error calculation
@@ -48,9 +48,9 @@ uint16_t distance = 0;
 uint16_t distancef = 0;
 uint16_t distancel = 0;
 uint16_t distancer = 0;
-uint8_t front = 2;
-uint8_t left = 4;
-uint8_t right = 6;
+uint8_t front = 0x02;
+uint8_t left = 0x04;
+uint8_t right = 0x06;
 
 //float ksteer = _;                   // Proportional Gain constant for steering
 //float kdrive = _;                   // Proportional Gain constant for Drive
@@ -75,31 +75,40 @@ void main(void){
     // Initialize the drive motor to neutral for 1 s
     // Set motor pulsewidth to neutral
     read_compass();
-    read_ranger();
+    ReadRanger(front);
+    distancef = distance;
+    ReadRanger(left);
+    distancel = distance;
+    ReadRanger(right);
+    distancer = distance;
     MOTOR_PW = MOTOR_NEUT;
-    PCA0CP1 = MOTOR_PW;
+    PCA0CP2 = MOTOR_PW;
     SERVO_PW = SERVO_CENTER;
     PCA0CP0 = SERVO_PW;
-    while(counts < 100){ // Wait 1 second
+    printf("Initializing motors, please wait.\n");
+    while(counts < 200){ // Wait 1 second
         Sim_Update();   // Called in all loops!
+
     }
 
     // Clear the flag counter variables to prevent a double read
     r_count = h_count = p_count = 0;
     new_range = new_heading = new_print = 0;
 
-    // Print data headers
-    printf("...");
+
 
     // Make sure pushbutton is not pressed before starting
     while (!PB) {Sim_Update();}
-    printf("heh");
+    printf("\nPush Button Released... ");
     while (!SS) {Sim_Update();}
-    printf("nice");
-
+    printf("Beginning Simulation:\n");
+    // Print data headers
+    printf("Time\tHeading\tRangeF\tRangeL\tRangeR\tServoPW\tMotorPW\tState\n");
     // Run program loop
     // while(1) loop may or may not be needed, depending on how it's implemented.
     while(1){
+        MOTOR_PW = MOTOR_MAX;
+        PCA0CP1 = MOTOR_PW;
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         if (new_range){
             // Get distance and act upon it
@@ -109,20 +118,19 @@ void main(void){
             distancel = distance;
             ReadRanger(right);
             distancer = distance;
-            printf("Range Left: %d   Range Right: %d   Range Front: %d\n", distancel, distancer, distancef);
             new_range = 0;
         }
         if (new_heading){
             // Get heading and act upon it
             read_compass();
-            printf("Heading: %d\n", new_heading);
             new_heading=0;
         }
-        //if (new_print){
+        if (new_print){
             // Print import stuff
-        //    new_print = 0;
-        //    printf("DATA1\tDATA2\tDATA3\t...\r\n");
-        //}
+            new_print = 0;
+            time++;
+            printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP1);
+        }
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
     }
 }
@@ -144,8 +152,8 @@ void PCA_Init(void){
     PCA0MD = 0x81;
     //PCA0MD |= 0x01; // SYSCLK/12, Interrupt Enable
     PCA0CPM0 |= 0xC2; // Enable 16-bit PWM, compare function
+    PCA0CPM1 |= 0xC2;
     PCA0CPM2 |= 0xC2;
-    PCA0CPM3 |= 0xC2;
     CR = 1; // Same as PCA0CN |= 0x40;
 }
 
@@ -225,7 +233,7 @@ void PCA_ISR(void){
             r_count = 0;
             new_range = 1;
         }
-        if(p_count == 10){  // Count 100 ms
+        if(p_count == 47){  // Count 100 ms
             p_count = 0;
 
             new_print = 1;
