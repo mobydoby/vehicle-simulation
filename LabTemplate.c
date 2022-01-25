@@ -48,9 +48,9 @@ uint16_t distance = 0;
 uint16_t distancef = 0;
 uint16_t distancel = 0;
 uint16_t distancer = 0;
-uint8_t front = 0x02;
-uint8_t left = 0x04;
-uint8_t right = 0x06;
+uint8_t front = 2;
+uint8_t left = 4;
+uint8_t right = 6;
 
 //float ksteer = _;                   // Proportional Gain constant for steering
 //float kdrive = _;                   // Proportional Gain constant for Drive
@@ -82,7 +82,7 @@ void main(void){
     ReadRanger(right);
     distancer = distance;
     MOTOR_PW = MOTOR_NEUT;
-    PCA0CP2 = MOTOR_PW;
+    PCA0CP1 = MOTOR_PW;
     SERVO_PW = SERVO_CENTER;
     PCA0CP0 = SERVO_PW;
     printf("Initializing motors, please wait.\n");
@@ -107,8 +107,7 @@ void main(void){
     // Run program loop
     // while(1) loop may or may not be needed, depending on how it's implemented.
     while(1){
-        MOTOR_PW = MOTOR_MAX;
-        PCA0CP1 = MOTOR_PW;
+        set_motorPW(MOTOR_MAX);
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         if (new_range){
             // Get distance and act upon it
@@ -149,12 +148,18 @@ void XBR_Init(void){
 }
 
 void PCA_Init(void){
-    PCA0MD = 0x81;
+    /*PCA0MD = 0x81;
     //PCA0MD |= 0x01; // SYSCLK/12, Interrupt Enable
     PCA0CPM0 |= 0xC2; // Enable 16-bit PWM, compare function
     PCA0CPM1 |= 0xC2;
     PCA0CPM2 |= 0xC2;
     CR = 1; // Same as PCA0CN |= 0x40;
+    */
+    PCA0MD = 0x81;
+    PCA0CPM0 |= 0xC2;
+    PCA0CPM1 |= 0xC2;
+    PCA0CPM2 |= 0xC2;
+    PCA0CN|=0x40;
 }
 
 void Interrupt_Init(void){
@@ -181,7 +186,7 @@ void read_ranger(void){
     i2c_read_data(addr, 2, Data, 2);   //read two bytes, starting at reg 2
     range = (((unsigned int)Data[0] << 8) | Data[1]);       // combine the two values
     // Tell the ranger to trigger a ping
-    Data[0] = 0x51 ;                     // want to write 0x51 to reg 0 (ping in cm)
+    Data[0] = 0x51;                     // want to write 0x51 to reg 0 (ping in cm)
     i2c_write_data(0xE0, 0, Data, 1);    // write data byte to ranger
 }
 
@@ -204,7 +209,7 @@ void set_servoPW(signed int user_input){
     }else if(SERVO_PW < SERVO_LEFT){
         SERVO_PW = SERVO_LEFT;
     }
-    PCA0CP0 = 0xFFFF - SERVO_PW;
+    PCA0CP0 = SERVO_PW;
 }
 
 void set_motorPW(signed int user_input){
@@ -216,7 +221,7 @@ void set_motorPW(signed int user_input){
     }else if(MOTOR_PW < MOTOR_MIN){
         MOTOR_PW = MOTOR_MIN;
     }
-    PCA0CP1 = 0xFFFF - MOTOR_PW;
+    PCA0CP1 = MOTOR_PW;
 }
 
 void PCA_ISR(void){
@@ -233,7 +238,7 @@ void PCA_ISR(void){
             r_count = 0;
             new_range = 1;
         }
-        if(p_count == 47){  // Count 100 ms
+        if(p_count == 47){  // Count 1 second
             p_count = 0;
 
             new_print = 1;
