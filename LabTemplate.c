@@ -89,29 +89,32 @@ void main(void){
     printf("nice");
 
     // Run program loop
-        // while(1) loop may or may not be needed, depending on how it's implemented.
+    // while(1) loop may or may not be needed, depending on how it's implemented.
     while(1){
-        Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
-
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
-        // if (new_range){
-            // Get distance and act u   pon it
-        //    printf(new_range);
-        //}
-        //if (new_heading){
+        if (new_range){
+            // Get distance and act upon it
+            read_ranger();
+            printf("Range: %d\n", range);
+            new_range = 0;
+        }
+        if (new_heading){
             // Get heading and act upon it
-        //    printf(new_heading);
-        //}
+            read_compass();
+            printf("Heading: %d\n", new_heading);
+            new_heading=0;
+        }
         //if (new_print){
             // Print import stuff
         //    new_print = 0;
         //    printf("DATA1\tDATA2\tDATA3\t...\r\n");
         //}
-
+        Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
     }
 }
 
 void Port_Init(void){
+    P0MDOUT |= 0x30;
     P1MDOUT |= 0x0D;        // Make P1.0,.2,.3 outputs
     P3MDOUT &= 0xFE;
     P2MDOUT &= 0xFD;
@@ -124,7 +127,8 @@ void XBR_Init(void){
 }
 
 void PCA_Init(void){
-    PCA0MD |= 0x01; // SYSCLK/12, Interrupt Enable
+    PCA0MD = 0x81;
+    //PCA0MD |= 0x01; // SYSCLK/12, Interrupt Enable
     PCA0CPM0 |= 0xC2; // Enable 16-bit PWM, compare function
     PCA0CPM2 |= 0xC2;
     PCA0CPM3 |= 0xC2;
@@ -199,13 +203,13 @@ void PCA_ISR(void){
             r_count = 0;
             new_range = 1;
         }
-        if(p_count == 4){  // Count 100 ms
+        if(p_count == 10){  // Count 100 ms
             p_count = 0;
+
             new_print = 1;
         }
-        PCA0 = 28672;  // Configure the period of the PCA
+        PCA0 = 28672;    // Configure the period of the PCA
         counts ++;
-        time = counts/40;
     }
     PCA0CN = 0x40;
 }
