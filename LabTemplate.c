@@ -17,8 +17,8 @@ void Interrupt_Init(void);          //Initialize interrupts function
 void SMB_Init(void);                // Initialize I2C function
 void read_ranger(void);             // Function to read the ranger and start a ping
 void read_compass(void);            // Function to read the compass heading
-void set_servoPW(void);
-void set_motorPW(void);
+void set_servoPW(signed int user_input);
+void set_motorPW(signed int user_input);
 
 signed int MOTOR_NEUT = 2765;       // Neutral              1.5 ms
 signed int MOTOR_MAX = 3502;        // Full Forward         1.9 ms
@@ -48,7 +48,7 @@ signed int heading_error = 0;       // Error calculation
 
 //__sbit __at 0xB0 SS;        // Sbit on Port 3 pin 0
 #define SS P3_0           // Simulator Sbit on Port 3 pin 0
-
+//__sbit __at 0xB0 PB;
 #define PB P2_1
 
 void main(void){
@@ -83,8 +83,10 @@ void main(void){
     printf("...");
 
     // Make sure pushbutton is not pressed before starting
-    while (PB) {Sim_Update();}
+    while (!PB) {Sim_Update();}
+    printf("heh");
     while (!SS) {Sim_Update();}
+    printf("nice");
 
     // Run program loop
         // while(1) loop may or may not be needed, depending on how it's implemented.
@@ -92,26 +94,29 @@ void main(void){
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
 
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
-        if (new_range){
+        // if (new_range){
             // Get distance and act u   pon it
-            printf(new_range);
-        }
-        if (new_heading){
+        //    printf(new_range);
+        //}
+        //if (new_heading){
             // Get heading and act upon it
-            printf(new_heading);
-        }
-        if (new_print){
+        //    printf(new_heading);
+        //}
+        //if (new_print){
             // Print import stuff
-            new_print = 0;
-            printf("DATA1\tDATA2\tDATA3\t...\r\n");
-        }
+        //    new_print = 0;
+        //    printf("DATA1\tDATA2\tDATA3\t...\r\n");
+        //}
 
     }
 }
 
 void Port_Init(void){
     P1MDOUT |= 0x0D;        // Make P1.0,.2,.3 outputs
-    // Fill in remaining
+    P3MDOUT &= 0xFE;
+    P2MDOUT &= 0xFD;
+    P3 |= ~0xFE;
+    P2 |= ~0xFD;
 }
 
 void XBR_Init(void){
@@ -156,8 +161,10 @@ void read_ranger(void){
 
 
 
-void set_servoPW(){
+void set_servoPW(signed int user_input){
     // Suggest adding slide switch control here
+    SERVO_PW = SERVO_CENTER + user_input;
+
     if(SERVO_PW > SERVO_RIGHT){
         SERVO_PW = SERVO_RIGHT;
     }else if(SERVO_PW < SERVO_LEFT){
@@ -166,8 +173,10 @@ void set_servoPW(){
     PCA0CP0 = 0xFFFF - SERVO_PW;
 }
 
-void set_motorPW(){
+void set_motorPW(signed int user_input){
     // Suggest adding slide switch control here
+    MOTOR_PW = MOTOR_NEUT + user_input;
+
     if(MOTOR_PW > MOTOR_MAX){
         MOTOR_PW = MOTOR_MAX;
     }else if(MOTOR_PW < MOTOR_MIN){
