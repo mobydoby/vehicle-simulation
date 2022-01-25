@@ -47,8 +47,9 @@ signed int heading_error = 0;       // Error calculation
 //float kdrive = _;                   // Proportional Gain constant for Drive
 
 //__sbit __at 0xB0 SS;        // Sbit on Port 3 pin 0
-#define SS P3_0;              // Simulator Sbit on Port 3 pin 0
+#define SS P3_0           // Simulator Sbit on Port 3 pin 0
 
+#define PB P2_1
 
 void main(void){
 
@@ -70,7 +71,7 @@ void main(void){
     PCA0CP1 = MOTOR_PW;
     SERVO_PW = SERVO_CENTER;
     PCA0CP0 = SERVO_PW;
-    while(counts < 45){ // Wait 1 second
+    while(counts < 100){ // Wait 1 second
         Sim_Update();   // Called in all loops!
     }
 
@@ -82,6 +83,8 @@ void main(void){
     printf("...");
 
     // Make sure pushbutton is not pressed before starting
+    while (PB) {Sim_Update();}
+    while (!SS) {Sim_Update();}
 
     // Run program loop
         // while(1) loop may or may not be needed, depending on how it's implemented.
@@ -90,7 +93,7 @@ void main(void){
 
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         if (new_range){
-            // Get distance and act upon it
+            // Get distance and act u   pon it
             printf(new_range);
         }
         if (new_heading){
