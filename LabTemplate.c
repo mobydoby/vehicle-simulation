@@ -24,12 +24,12 @@ void ReadRanger(uint8_t direction);
 signed int MOTOR_NEUT = 2765;       // Neutral              1.5 ms
 signed int MOTOR_MAX = 3502;        // Full Forward         1.9 ms
 signed int MOTOR_MIN = 2027;        // Full Reverse         1.1 ms
-signed int MOTOR_PW;                // Current PW
+signed int MOTOR_PW=0;                // Current PW
 
 signed int SERVO_CENTER = 2765;     // Centered             1.5 ms
 signed int SERVO_RIGHT = 3871;      // All the way right    2.1 ms
 signed int SERVO_LEFT = 1659;       // All the way left     0.9 ms
-signed int SERVO_PW;                // Current PW
+signed int SERVO_PW=0;                // Current PW
 
 unsigned char counts = 0;           // PCA overflow counter
 unsigned char new_range = 0;        // Flag denoting if a new range value should be retrieved (set in interrupt)
@@ -52,7 +52,12 @@ uint8_t front = 2;
 uint8_t left = 4;
 uint8_t right = 6;
 
-//float ksteer = _;                   // Proportional Gain constant for steering
+uint8_t state = 0;
+
+uint16_t desired_distance = 150;
+signed int distance_error = 0;
+
+float ksteer = 1.47;                   // Proportional Gain constant for steering
 //float kdrive = _;                   // Proportional Gain constant for Drive
 
 //__sbit __at 0xB0 SS;        // Sbit on Port 3 pin 0
@@ -81,14 +86,13 @@ void main(void){
     distancel = distance;
     ReadRanger(right);
     distancer = distance;
-    MOTOR_PW = MOTOR_NEUT;
-    PCA0CP1 = MOTOR_PW;
-    SERVO_PW = SERVO_CENTER;
+    MOTOR_PW = 0xFFFF-MOTOR_NEUT;
+    PCA0CP2 = MOTOR_PW;
+    SERVO_PW = 0xFFFF-SERVO_CENTER;
     PCA0CP0 = SERVO_PW;
     printf("Initializing motors, please wait.\n");
-    while(counts < 200){ // Wait 1 second
+    while(counts < 200){ // Wait some seconds
         Sim_Update();   // Called in all loops!
-
     }
 
     // Clear the flag counter variables to prevent a double read
@@ -100,14 +104,15 @@ void main(void){
     // Make sure pushbutton is not pressed before starting
     while (!PB) {Sim_Update();}
     printf("\nPush Button Released... ");
+    if (!SS) {printf("\nPlease toggle the slide switch on. ");}
     while (!SS) {Sim_Update();}
     printf("Beginning Simulation:\n");
     // Print data headers
     printf("Time\tHeading\tRangeF\tRangeL\tRangeR\tServoPW\tMotorPW\tState\n");
     // Run program loop
     // while(1) loop may or may not be needed, depending on how it's implemented.
-    while(1){
-        set_motorPW(MOTOR_MAX);
+    while(PB){
+        set_motorPW(30000);
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         if (new_range){
             // Get distance and act upon it
@@ -117,6 +122,7 @@ void main(void){
             distancel = distance;
             ReadRanger(right);
             distancer = distance;
+            distance_error = desired_distance - distancer;
             new_range = 0;
         }
         if (new_heading){
@@ -128,7 +134,11 @@ void main(void){
             // Print import stuff
             new_print = 0;
             time++;
-            printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP1);
+            printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t%d\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP2, state);
+        }
+        if (distancer < 200) {state = 1;}
+        if (state == 1) {
+            set_servoPW(0-(distance_error*ksteer));
         }
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
     }
@@ -148,18 +158,12 @@ void XBR_Init(void){
 }
 
 void PCA_Init(void){
-    /*PCA0MD = 0x81;
-    //PCA0MD |= 0x01; // SYSCLK/12, Interrupt Enable
-    PCA0CPM0 |= 0xC2; // Enable 16-bit PWM, compare function
-    PCA0CPM1 |= 0xC2;
-    PCA0CPM2 |= 0xC2;
-    CR = 1; // Same as PCA0CN |= 0x40;
-    */
+
     PCA0MD = 0x81;
-    PCA0CPM0 |= 0xC2;
-    PCA0CPM1 |= 0xC2;
-    PCA0CPM2 |= 0xC2;
-    PCA0CN|=0x40;
+    PCA0CPM0 = 0xC2;
+    PCA0CPM3 = 0xC2;
+    PCA0CPM2 = 0xC2;
+    PCA0CN=0x40;
 }
 
 void Interrupt_Init(void){
@@ -209,7 +213,7 @@ void set_servoPW(signed int user_input){
     }else if(SERVO_PW < SERVO_LEFT){
         SERVO_PW = SERVO_LEFT;
     }
-    PCA0CP0 = SERVO_PW;
+    PCA0CP0 = 0xFFFF - SERVO_PW;
 }
 
 void set_motorPW(signed int user_input){
@@ -221,7 +225,7 @@ void set_motorPW(signed int user_input){
     }else if(MOTOR_PW < MOTOR_MIN){
         MOTOR_PW = MOTOR_MIN;
     }
-    PCA0CP1 = MOTOR_PW;
+    PCA0CP2 = 0xFFFF - MOTOR_PW;
 }
 
 void PCA_ISR(void){
