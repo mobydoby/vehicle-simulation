@@ -54,10 +54,10 @@ uint8_t right = 0xE6;
 
 uint8_t state = 0;
 
-uint16_t desired_distance = 150;
+uint16_t desired_distance = 50;
 signed int distance_error = 0;
 
-float ksteer = 1.47;                   // Proportional Gain constant for steering
+float ksteer = 6;                   // Proportional Gain constant for steering
 //float kdrive = _;                   // Proportional Gain constant for Drive
 
 //__sbit __at 0xB0 SS;        // Sbit on Port 3 pin 0
@@ -136,8 +136,14 @@ void main(void){
             time++;
             printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t%d\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP2, state);
         }
-        if (distancer < 200) {state = 1;}
+        if (distancer < 330) {state = 1;}
         if (state == 1) {
+            // idk man make it turn towards the target
+        }
+        if (true /* idk smth about getting close to the target*/) {
+            state == 2;
+        }
+        if (state == 2) {
             set_servoPW(0-(distance_error*ksteer));
         }
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
