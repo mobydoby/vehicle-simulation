@@ -48,9 +48,9 @@ uint16_t distance = 0;
 uint16_t distancef = 0;
 uint16_t distancel = 0;
 uint16_t distancer = 0;
-uint8_t front = 2;
-uint8_t left = 4;
-uint8_t right = 6;
+uint8_t front = 0xE0;
+uint8_t left = 0xE4;
+uint8_t right = 0xE6;
 
 uint8_t state = 0;
 
@@ -163,7 +163,7 @@ void PCA_Init(void){
     PCA0CPM0 = 0xC2;
     PCA0CPM3 = 0xC2;
     PCA0CPM2 = 0xC2;
-    PCA0CN=0x40;
+    PCA0CN |= 0x40;
 }
 
 void Interrupt_Init(void){
@@ -194,12 +194,11 @@ void read_ranger(void){
     i2c_write_data(0xE0, 0, Data, 1);    // write data byte to ranger
 }
 
-void ReadRanger(uint8_t direction){
-    i2c_read_data(0xE0, direction, Data, 2);   // Read the 0-3600 heading bytes
-    distance = Data[0] << 8; // Put the bytes together and save value to global variable
-    distance |= Data[1];
+void ReadRanger(uint8_t address){
+    i2c_read_data(address, 2, Data, 2);   // Read the 0-3600 heading bytes
+    distance = (((unsigned int)Data[0] << 8) | Data[1]);
     Data[0] = 0x51;
-    i2c_write_data(0xE0, 0, Data, 1);
+    i2c_write_data(address, 0, Data, 1);
     distance = distance;
 }
 
