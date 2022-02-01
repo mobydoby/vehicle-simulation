@@ -127,11 +127,11 @@ void main(void){
 
         if (distancer > 330) {state = 1;}
         if (state == 1) {
-            set_servoPW(0-(distance_error*ksteer)*0.03);
+            set_servoPW(0-(distance_error*ksteer)*0.02);
         }
         if (distancer < 330) {state = 2;}
         if (state == 2) {
-            set_servoPW(0+(distance_error*ksteer)*0.03);
+            set_servoPW(0-(distance_error*ksteer));
         }
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
     }
