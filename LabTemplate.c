@@ -52,13 +52,14 @@ uint8_t front = 0xE0;
 uint8_t left = 0xE4;
 uint8_t right = 0xE6;
 
-uint8_t state = 0;
+uint8_t state = 1;
 
 uint16_t desired_distance = 50;
 signed int distance_error = 0;
 
 float ksteer = 6;                   // Proportional Gain constant for steering
-//float kdrive = _;                   // Proportional Gain constant for Drive
+float kdrive = 0.3;                   // Proportional Gain constant for Drive
+
 
 //__sbit __at 0xB0 SS;        // Sbit on Port 3 pin 0
 #define SS P3_0           // Simulator Sbit on Port 3 pin 0
@@ -117,22 +118,53 @@ void main(void){
     printf("Time\tHeading\tRangeF\tRangeL\tRangeR\tServoPW\tMotorPW\tState\n");
     // Run program loop
     // while(1) loop may or may not be needed, depending on how it's implemented.
-    while(PB){
-        set_motorPW(30000);
+    while(1){
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
         update_readings();
         update_heading();
         //prints everything about ranger
         print_info();
 
-        if (distancer > 330) {state = 1;}
-        if (state == 1) {
-            set_servoPW(0-(distance_error*ksteer)*0.02);
+        switch(state){
+            case(0):
+                set_motorPW(MOTOR_MAX);
+                if (distancer < 100) {
+                    //set_motorPW(MOTOR_NEUT); //Brief stop to minimize turn error
+                    state ++;}
+                break;
+            case(1):
+                set_motorPW(MOTOR_MAX);
+                heading_error = 2200 - heading;
+                set_servoPW((heading_error*kdrive)); //not sure if this will work, goal is to turn left
+                if(distancer < 100) { //EXPERIMENTALLY DEFINED: When car is sufficiently close to beacon
+                    state++;
+                }
+                break;
+            case(2):
+                set_servoPW(0-(distance_error*ksteer)); //Dom's circling code left unchanged
+                //Need to keep track of number of circles somehow, not sure of best way
+                if(!PB) {
+                    state++;
+                }
+                break;
+            case(3): //Return home
+                set_servoPW(0-(distance_error*ksteer));
+                if(heading < 100 || heading > 3500) {
+                    state++;
+                }
+                break;
+            case(4):
+                if (heading < 100) {
+                    heading_error = 0 - heading;
+                } else {
+                    heading_error = 3600 - heading;
+                }
+
+                set_servoPW((heading_error*kdrive));
+                break;
+
         }
-        if (distancer < 330) {state = 2;}
-        if (state == 2) {
-            set_servoPW(0-(distance_error*ksteer));
-        }
+
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
     }
 }
