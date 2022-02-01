@@ -99,7 +99,13 @@ void main(void){
     r_count = h_count = p_count = 0;
     new_range = new_heading = new_print = 0;
 
-
+    /*
+    states:
+    state 0:
+    state 1:
+    state 2:
+    state 3: activated upon pushing button
+    */
 
     // Make sure pushbutton is not pressed before starting
     while (!PB) {Sim_Update();}
@@ -114,39 +120,51 @@ void main(void){
     while(PB){
         set_motorPW(30000);
         // This stuff below is close to what a team should have had at the end of LITEC Lab3-3 (with pieces missing)
-        if (new_range){
-            // Get distance and act upon it
-            ReadRanger(front);
-            distancef = distance;
-            ReadRanger(left);
-            distancel = distance;
-            ReadRanger(right);
-            distancer = distance;
-            distance_error = desired_distance - distancer;
-            new_range = 0;
-        }
-        if (new_heading){
-            // Get heading and act upon it
-            read_compass();
-            new_heading=0;
-        }
-        if (new_print){
-            // Print import stuff
-            new_print = 0;
-            time++;
-            printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t%d\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP2, state);
-        }
-        if (distancer < 330) {state = 1;}
+        update_readings();
+        update_heading();
+        //prints everything about ranger
+        print_info();
+
+        if (distancer > 330) {state = 1;}
         if (state == 1) {
-            // idk man make it turn towards the target
+            set_servoPW(0-(distance_error*ksteer)*0.03);
         }
-        if (true /* idk smth about getting close to the target*/) {
-            state == 2;
-        }
+        if (distancer < 330) {state = 2;}
         if (state == 2) {
-            set_servoPW(0-(distance_error*ksteer));
+            set_servoPW(0+(distance_error*ksteer)*0.03);
         }
         Sim_Update(); // MUST BE CALLED IN ALL LOOPS!!! (used to update the simulation and this code)
+    }
+}
+
+void print_info(){
+    if (new_print){
+        // Print import stuff
+        new_print = 0;
+        time++;
+        printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t%d\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP2, state);
+    }
+}
+
+void update_readings(){
+    if (new_range){
+        // Get distance and act upon it
+        ReadRanger(front);
+        distancef = distance;
+        ReadRanger(left);
+        distancel = distance;
+        ReadRanger(right);
+        distancer = distance;
+        distance_error = desired_distance - distancer;
+        new_range = 0;
+    }
+}
+
+void update_heading(){
+    if (new_heading){
+        // Get heading and stores it, resets new heading to 0
+        read_compass();
+        new_heading=0;
     }
 }
 
