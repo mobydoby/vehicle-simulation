@@ -56,6 +56,7 @@ uint16_t distancer = 0;             // Variable to hold right ranger distance va
 uint8_t front = 0xE0;               // Register location of the front ranger data
 uint8_t left = 0xE4;                // Register location of the left ranger data
 uint8_t right = 0xE6;               // Register location of the right ranger data
+uint8_t head_addr = 0xC0;           // Register location of the compass data
 
 uint8_t state = 1;                  // Operative variable for the main case statement, initial state is 1
 
@@ -131,13 +132,12 @@ void main(void){
             case(1): // Initial state. The robot moves northeast towards desired heading 220deg.
                 set_motorPW(MOTOR_MAX);
                 des_heading = 2200;
-                heading_error = des_heading - heading;
                 set_servoPW(heading_error*kturn); // Turn using experimentally derived PD constant for turns.
                 if(distancer < 100) { // Advance state when car is within 100 ranger units of target (limit experimentally derived).
                     state++;
                 }
                 break;
-            case(2): // Target orbiting state.
+            case(2): // Orbit in a circle around the target.
                 set_servoPW(0-(distance_error*korbit)); // korbit experimentally derived to produce even circle
                 if(!PB) { // Advance state when pushbutton is depressed.
                     state++;
@@ -145,16 +145,16 @@ void main(void){
                 break;
             case(3): // Continue orbiting until heading is sufficiently close to zero. This prevents collision with target.
                 set_servoPW(0-(distance_error*korbit));
-                if(heading < 100 || heading > 3500) {
+                if(heading < 100 || heading > 3500) { // Advance state when heading is within 1deg of 0/360 wrap.
                     state++;
                 }
                 break;
-            case(4):
-                if (heading < 100) {
-                    heading_error = 0 - heading;
+            case(4): // When the car is pointed towards home (0/360deg), drive southwest to desired heading 0deg.
+                if (heading < 100) { // Two separate heading error calculations necessary due to 0/360deg wrap.
+                    des_heading = 0;
                 }
                 else {
-                    heading_error = 3600 - heading;
+                    des_heading = 3600;
                 }
 
                 set_servoPW((heading_error*kturn));
@@ -166,50 +166,94 @@ void main(void){
     }
 }
 
+// When new_print flag is up, print out measurements from the vehicle sensors, PWs,  and state number.
 void print_info(){
     if (new_print){
-        // Print import stuff
-        new_print = 0;
+        new_print = 0; // Put flag back down since task is completed.
         time++;
         printf("%d\t%d\t%u\t%u\t%u\t%u\t%u\t%d\n", time, heading, distancef, distancel, distancer, PCA0CP0, PCA0CP2, state);
     }
 }
 
-void update_rangers(){
-    if (new_range){
-        // Get distance and act upon it
-        read_ranger(front);
-        distancef = distance;
-        read_ranger(left);
-        distancel = distance;
-        read_ranger(right);
-        distancer = distance;
-        distance_error = des_distance - distancer;
-        new_range = 0;
-    }
+// Reads heading data from the compass' output register on the I2C. Called in update_heading().
+void read_compass(void){
+    i2c_read_data(head_addr, 2, Data, 2);                   // Since the output size is 2 register lengths, read it to array Data of length 2
+    heading =(((unsigned int)Data[0] << 8) | Data[1]);      // Combine the two values in Data[] to get the full heading measurement in deg/10
 }
 
+// When new_heading flag is up, call read_compass() to trigger heading measurement.
 void update_heading(){
     if (new_heading){
-        // Get heading and stores it, resets new heading to 0
         read_compass();
-        new_heading=0;
+        heading_error = des_heading - heading; // Calculate heading error from desired heading and measuremnt taken
+        new_heading=0; // Put flag back down since task is completed.
     }
 }
 
+// Reads the data from a single ranger's I2C output register. Called for each ranger in update_rangers().
+void read_ranger(uint8_t address){
+    i2c_read_data(address, 2, Data, 2);                     // Since the output size is 2 register lengths, read it to array Data of length 2
+    distance = (((unsigned int)Data[0] << 8) | Data[1]);    // Combine the two values in Data[] to get the full range measurement
+    Data[0] = 0x51;                                         // The next two lines trigger the next sonar ping
+    i2c_write_data(address, 0, Data, 1);
+}
+
+// When new_range flag is up, call read_ranger() for each ranger to trigger distance measurements.
+void update_rangers(){
+    if (new_range){
+        read_ranger(front);    // Read from the front ranger and store measurement in distancef
+        distancef = distance;
+        read_ranger(left);     // Read from the left ranger and store measurement in distancel
+        distancel = distance;
+        read_ranger(right);    // Read from the right ranger and store measurement in distancer
+        distancer = distance;
+        distance_error = des_distance - distancer; // Calculate error from desired distance using the distancer measurement
+        new_range = 0;         // Put flag back down since task is completed.
+    }
+}
+
+// Sets the turning servo pulsewidth based on input from navigation statements
+void set_servoPW(signed int user_input){
+    SERVO_PW = SERVO_CENTER + user_input;
+
+    if(SERVO_PW > SERVO_RIGHT){      // If new servo PW is outside the right or left limits, fix to the appropriate limit
+        SERVO_PW = SERVO_RIGHT;
+    }
+    else if(SERVO_PW < SERVO_LEFT){
+        SERVO_PW = SERVO_LEFT;
+    }
+    PCA0CP0 = 0xFFFF - SERVO_PW;     // Set PCA0CP0 (PCA controlling servo) using calculated PW
+}
+
+// Sets the drive motor pulsewidth based on input from navigation statements
+void set_motorPW(signed int user_input){
+    MOTOR_PW = MOTOR_NEUT + user_input;
+
+    if(MOTOR_PW > MOTOR_MAX){
+        MOTOR_PW = MOTOR_MAX;       // If new motor PW is outside the min or max limits, fix to the appropriate limit
+    }
+    else if(MOTOR_PW < MOTOR_MIN){
+        MOTOR_PW = MOTOR_MIN;
+    }
+    PCA0CP2 = 0xFFFF - MOTOR_PW;    // Set PCA0CP2 (PCA controlling motor) using calculated PW
+}
+
+// Port initializations for simulation I2C
 void Port_Init(void){
     P0MDOUT |= 0x30;
-    P1MDOUT |= 0x0D;        // Make P1.0,.2,.3 outputs
+    P1MDOUT |= 0x0D;
     P3MDOUT &= 0xFE;
     P2MDOUT &= 0xFD;
     P3 |= ~0xFE;
     P2 |= ~0xFD;
 }
 
+// Initialization for simulation crossbar
 void XBR_Init(void){
     XBR0 = 0x27;    // 00100111, Enable SPI, I2C, and CEX0-3
 }
 
+// Initialization for simulation PCAs
 void PCA_Init(void){
 
     PCA0MD = 0x81;
@@ -219,74 +263,36 @@ void PCA_Init(void){
     PCA0CN |= 0x40;
 }
 
+// Initialization for simulation interrupts
 void Interrupt_Init(void){
     EIE1 |= 0x08;       // Enable PCA interrupt
     EA = 1;             // Globally Enable interrupts
 }
 
+// Initialization for simulation SMBus incl. clockrate
 void SMB_Init(void){
     SMB0CR = 0x93;      // Configure the I2C Clock Rate
-    ENSMB=1;            // Enable the module
+    ENSMB=1;            // Enable the SMBus module
 }
 
-void read_compass(void){
-    unsigned char addr = 0xC0;          // the address of the sensor, 0xC0 for the compass
-    unsigned char Data[2];              // Data is an array with a length of 2
-    i2c_read_data(addr, 2, Data, 2);                        // read two byte, starting at reg 2
-    heading =(((unsigned int)Data[0] << 8) | Data[1]);      // combine the two values
-                            //heading has units of 1/10 of a degree
-}
-
-void read_ranger(uint8_t address){
-    i2c_read_data(address, 2, Data, 2);   // Read the 0-3600 heading bytes
-    distance = (((unsigned int)Data[0] << 8) | Data[1]);
-    Data[0] = 0x51;
-    i2c_write_data(address, 0, Data, 1);
-    distance = distance;
-}
-
-
-void set_servoPW(signed int user_input){
-    // Suggest adding slide switch control here
-    SERVO_PW = SERVO_CENTER + user_input;
-
-    if(SERVO_PW > SERVO_RIGHT){
-        SERVO_PW = SERVO_RIGHT;
-    }else if(SERVO_PW < SERVO_LEFT){
-        SERVO_PW = SERVO_LEFT;
-    }
-    PCA0CP0 = 0xFFFF - SERVO_PW;
-}
-
-void set_motorPW(signed int user_input){
-    // Suggest adding slide switch control here
-    MOTOR_PW = MOTOR_NEUT + user_input;
-
-    if(MOTOR_PW > MOTOR_MAX){
-        MOTOR_PW = MOTOR_MAX;
-    }else if(MOTOR_PW < MOTOR_MIN){
-        MOTOR_PW = MOTOR_MIN;
-    }
-    PCA0CP2 = 0xFFFF - MOTOR_PW;
-}
-
+// PCA Interrupt Service Routine (ISR) - sets new_X flags based on clock count
 void PCA_ISR(void){
-    if(CF){
+    if(CF){             // If PCA period has passed (10ms) increment all flag trackers
         CF = 0;
         h_count++;
         r_count++;
         p_count++;
-        if(h_count == 4){  // Count 40 ms
+
+        if(h_count == 4){  // Raise new_heading flag every 4 PCA cycles (40 ms)
             h_count = 0;
             new_heading = 1;
         }
-        if(r_count == 8){  // Count 80 ms
+        if(r_count == 8){  // Raise new_range flag every 8 PCA cycles (80 ms)
             r_count = 0;
             new_range = 1;
         }
-        if(p_count == 47){  // Count 1 second
+        if(p_count == 47){ // Raise new_print flag every 47 PCA cycles (10 ms)
             p_count = 0;
-
             new_print = 1;
         }
         PCA0 = 28672;    // Configure the period of the PCA
@@ -294,3 +300,4 @@ void PCA_ISR(void){
     }
     PCA0CN = 0x40;
 }
+
